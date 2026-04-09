@@ -1,0 +1,5 @@
+method,precision,recall,f1_score,true_positives,false_positives,true_negatives,false_negatives
+Z-Score,0.3441,0.3673,0.3553,10703,20405,979595,18436
+Isolation Forest,0.576,0.6103,0.5927,17784,13091,986909,11355
+Rule-Based,0.7385,0.5442,0.6267,15858,5614,994386,13281
+Ensemble (2/3),0.6907,0.5391,0.6056,15709,7035,992965,13430

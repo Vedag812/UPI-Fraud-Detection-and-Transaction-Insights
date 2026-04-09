@@ -33,10 +33,14 @@ def load_data():
     base_dir = os.path.dirname(os.path.dirname(__file__))
     flagged = os.path.join(base_dir, 'data', 'processed', 'upi_transactions_flagged.csv')
     processed = os.path.join(base_dir, 'data', 'processed', 'upi_transactions_processed.csv')
+    sample = os.path.join(base_dir, 'data', 'sample', 'sample_flagged.csv')
     if os.path.exists(flagged):
         return pd.read_csv(flagged, parse_dates=['timestamp'])
     elif os.path.exists(processed):
         return pd.read_csv(processed, parse_dates=['timestamp'])
+    elif os.path.exists(sample):
+        # fallback for Streamlit Cloud (50K row sample)
+        return pd.read_csv(sample, parse_dates=['timestamp'])
     else:
         st.error("No data found. Run the pipeline first.")
         st.stop()

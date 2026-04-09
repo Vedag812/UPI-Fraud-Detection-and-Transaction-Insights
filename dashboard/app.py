@@ -368,12 +368,181 @@ def render_deep_dive(df):
                       "filtered_transactions.csv", "text/csv")
 
 
+def render_fraud_checker(df):
+    """interactive page where anyone can enter a transaction and get a fraud verdict"""
+    st.markdown('<p class="main-header">🔍 Live Fraud Checker</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Enter transaction details below to check if it looks fraudulent</p>',
+                unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- input form ---
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        amount = st.number_input("💰 Transaction Amount (₹)", min_value=1.0, max_value=500000.0,
+                                  value=2500.0, step=100.0)
+        city = st.selectbox("📍 City", ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai',
+                                         'Kolkata', 'Pune', 'Ahmedabad', 'Jaipur', 'Lucknow',
+                                         'Chandigarh', 'Indore', 'Bhopal', 'Patna', 'Kochi'])
+        sender_bank = st.selectbox("🏦 Sender Bank", ['PhonePe', 'Google Pay', 'Paytm',
+                                                        'SBI', 'HDFC', 'ICICI', 'Axis',
+                                                        'BOB', 'PNB', 'Kotak'])
+
+    with col2:
+        hour = st.slider("🕐 Hour of Transaction", 0, 23, 14)
+        txn_type = st.selectbox("📋 Transaction Type", ['P2P', 'P2M', 'Bill Payment',
+                                                          'Recharge', 'Investment'])
+        is_weekend = st.selectbox("📅 Is Weekend?", ['No', 'Yes'])
+
+    with col3:
+        txn_velocity = st.number_input("⚡ Transactions in Last Hour", min_value=0, max_value=50,
+                                        value=2, step=1)
+        device_os = st.selectbox("📱 Device", ['Android', 'iOS'])
+        st.write("")  # spacer
+        check_btn = st.button("🔎 Check for Fraud", type="primary", use_container_width=True)
+
+    if check_btn:
+        st.divider()
+
+        # --- run detection logic ---
+        is_night = 1 if 1 <= hour <= 5 else 0
+        is_wknd = 1 if is_weekend == 'Yes' else 0
+
+        # compute z-score against the loaded dataset
+        user_avg = df['amount'].mean()
+        user_std = df['amount'].std()
+        zscore = (amount - user_avg) / user_std if user_std > 0 else 0
+
+        # rule-based checks
+        rules_triggered = []
+        risk_score = 0
+
+        # rule 1: unusual hour (1-5 AM)
+        if is_night:
+            rules_triggered.append("🌙 Late Night Transaction (1-5 AM) — fraud rate 3x higher at night")
+            risk_score += 25
+
+        # rule 2: round number structuring (amounts like 9900, 9950, 9999)
+        if 9000 <= amount <= 10000:
+            rules_triggered.append("💵 Near ₹10K Threshold — possible structuring to avoid reporting limits")
+            risk_score += 20
+
+        # rule 3: high velocity
+        if txn_velocity >= 5:
+            rules_triggered.append(f"⚡ High Velocity ({txn_velocity} txns/hr) — possible account takeover")
+            risk_score += 20
+        if txn_velocity >= 10:
+            rules_triggered.append("🚨 Extreme Velocity (10+ txns/hr) — rapid-fire fraud pattern")
+            risk_score += 15
+
+        # rule 4: high amount zscore
+        if abs(zscore) > 3:
+            rules_triggered.append(f"📊 Amount Anomaly (Z-Score: {zscore:.2f}) — far from average ₹{user_avg:,.0f}")
+            risk_score += 20
+
+        # rule 5: very high amount
+        if amount > 50000:
+            rules_triggered.append("💰 High Value Transaction (>₹50K) — higher scrutiny required")
+            risk_score += 15
+
+        # rule 6: late night + high amount
+        if is_night and amount > 10000:
+            rules_triggered.append("🔴 Late Night + High Amount — classic fraud combination")
+            risk_score += 15
+
+        # rule 7: high velocity + unusual hour
+        if txn_velocity >= 5 and is_night:
+            rules_triggered.append("🔴 Rapid Transactions at Night — strong fraud indicator")
+            risk_score += 15
+
+        risk_score = min(risk_score, 100)
+
+        # --- display results ---
+        if risk_score >= 60:
+            verdict_color = "🔴"
+            verdict = "HIGH RISK — Likely Fraudulent"
+            st.error(f"## {verdict_color} {verdict}")
+        elif risk_score >= 30:
+            verdict_color = "🟡"
+            verdict = "MEDIUM RISK — Suspicious"
+            st.warning(f"## {verdict_color} {verdict}")
+        else:
+            verdict_color = "🟢"
+            verdict = "LOW RISK — Appears Normal"
+            st.success(f"## {verdict_color} {verdict}")
+
+        # score cards
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Risk Score", f"{risk_score}/100")
+        c2.metric("Amount Z-Score", f"{zscore:.2f}")
+        c3.metric("Rules Triggered", f"{len(rules_triggered)}")
+        c4.metric("Night Transaction", "Yes ⚠️" if is_night else "No ✅")
+
+        # rules explanation
+        if rules_triggered:
+            st.divider()
+            st.subheader("🚩 Rules Triggered")
+            for rule in rules_triggered:
+                st.markdown(f"- {rule}")
+        else:
+            st.divider()
+            st.success("✅ No fraud rules triggered — transaction appears normal")
+
+        # comparison with dataset
+        st.divider()
+        st.subheader("📊 How This Compares to Our Dataset")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Your Amount", f"₹{amount:,.0f}")
+        c2.metric("Dataset Average", f"₹{df['amount'].mean():,.0f}")
+        c3.metric("Dataset Fraud Avg", f"₹{df[df['is_fraud']==1]['amount'].mean():,.0f}")
+        c4.metric("Your Percentile", f"{(df['amount'] < amount).mean()*100:.1f}%")
+
+        # amount distribution chart
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Histogram(x=df[df['is_fraud']==0]['amount'].clip(0, 50000),
+                                    name='Normal Txns', marker_color='#22c55e', opacity=0.6, nbinsx=50))
+        fig.add_trace(go.Histogram(x=df[df['is_fraud']==1]['amount'].clip(0, 50000),
+                                    name='Fraud Txns', marker_color='#ef4444', opacity=0.6, nbinsx=50))
+        fig.add_vline(x=amount, line_dash="dash", line_color="#3b82f6", line_width=3,
+                      annotation_text=f"Your: ₹{amount:,.0f}", annotation_position="top")
+        fig.update_layout(title="Where Your Transaction Falls in the Distribution",
+                          xaxis_title="Amount (₹)", yaxis_title="Count",
+                          barmode='overlay', height=350, template='plotly_white')
+        st.plotly_chart(fig, use_container_width=True)
+
+        # causal insight
+        st.divider()
+        st.subheader("📈 Causal Insight: Effect of 2FA")
+        causal_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                    'data', 'sample', 'causal_results.json')
+        if not os.path.exists(causal_path):
+            causal_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                        'data', 'processed', 'causal_results.json')
+
+        if os.path.exists(causal_path):
+            import json
+            with open(causal_path) as f:
+                causal = json.load(f)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("2FA Effect on Fraud",
+                      f"{causal['ate_pct_points']}",
+                      delta=f"p = {causal['p_value']:.4f}")
+            c2.metric("Parallel Trends", "Valid ✅" if causal['parallel_trends_valid'] else "Invalid ❌")
+            c3.metric("Placebo Test", "Passed ✅" if causal['placebo_test_passed'] else "Failed ❌")
+            st.info("💡 Our Difference-in-Differences analysis shows that 2FA significantly reduces "
+                    "fraud probability. If this transaction had 2FA enabled, the fraud risk would be lower.")
+        else:
+            st.info("Run the full pipeline to see causal inference results here.")
+
+
 def main():
     st.sidebar.title("UPI Fraud Detection")
     st.sidebar.caption("India | 2024 | 1M Transaction Simulation")
     st.sidebar.divider()
 
     page = st.sidebar.radio("Navigate", [
+        '🔍 Live Fraud Checker',
         'Overview',
         'Fraud Intelligence',
         'Bank & City Analytics',
@@ -400,13 +569,15 @@ def main():
     st.sidebar.caption(f"**{len(df):,}** transactions loaded")
     st.sidebar.caption(f"Fraud: **{df['is_fraud'].sum():,}** ({df['is_fraud'].mean()*100:.2f}%)")
 
-    if page == 'Overview':              render_overview(df)
-    elif page == 'Fraud Intelligence': render_fraud_intelligence(df)
+    if page == '🔍 Live Fraud Checker':   render_fraud_checker(df)
+    elif page == 'Overview':              render_overview(df)
+    elif page == 'Fraud Intelligence':    render_fraud_intelligence(df)
     elif page == 'Bank & City Analytics': render_bank_analytics(df)
-    elif page == 'Real Market Context': render_real_market(df)
-    elif page == "Benford's Law":     render_benfords(df)
-    elif page == 'Deep Dive':          render_deep_dive(df)
+    elif page == 'Real Market Context':   render_real_market(df)
+    elif page == "Benford's Law":         render_benfords(df)
+    elif page == 'Deep Dive':            render_deep_dive(df)
 
 
 if __name__ == '__main__':
     main()
+

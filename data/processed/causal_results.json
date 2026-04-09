@@ -1,0 +1,55 @@
+{
+  "research_question": "Effect of 2FA on UPI fraud rates",
+  "method": "Difference-in-Differences (OLS with HC1 robust SE)",
+  "ate": -0.00727,
+  "ate_pct_points": "2FA reduces fraud probability by 0.73 percentage points",
+  "confidence_interval": [
+    -0.012988,
+    -0.001553
+  ],
+  "p_value": 0.01269481,
+  "is_significant": true,
+  "parallel_trends_valid": true,
+  "parallel_trends_f_stat": 1.0205,
+  "parallel_trends_p_value": 0.4035,
+  "placebo_test_passed": true,
+  "placebo_ate": -4.3e-05,
+  "placebo_p_value": 0.9913,
+  "n_observations": 100000,
+  "n_treatment": 88226,
+  "n_control": 11774,
+  "model_r_squared": 0.1178,
+  "controls": [
+    "amount_log",
+    "is_night",
+    "is_weekend",
+    "city_tier",
+    "user_risk_score"
+  ],
+  "sensitivity_results": {
+    "no_controls": {
+      "ate": -0.007682,
+      "p_value": 0.012595,
+      "r_squared": 0.0001,
+      "n_obs": 100000
+    },
+    "time_controls": {
+      "ate": -0.007693,
+      "p_value": 0.011447,
+      "r_squared": 0.0308,
+      "n_obs": 100000
+    },
+    "amount_controls": {
+      "ate": -0.006993,
+      "p_value": 0.016679,
+      "r_squared": 0.1156,
+      "n_obs": 100000
+    },
+    "full_controls": {
+      "ate": -0.00727,
+      "p_value": 0.012695,
+      "r_squared": 0.1178,
+      "n_obs": 100000
+    }
+  }
+}

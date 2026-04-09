@@ -1,0 +1,42 @@
+# files docker doesn't need in the image
+# keeps the build fast and the image small
+
+# version control
+.git
+.gitignore
+
+# virtual environment (we install deps fresh in the container)
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# IDE stuff
+.vscode/
+.idea/
+*.swp
+
+# raw data is huge (~140MB) and not needed for the API
+# processed data and FAISS index are mounted via volumes
+data/raw/
+
+# reports and screenshots are for humans, not the container
+reports/
+screenshots/
+
+# powerbi files
+data/powerbi/
+*.pbix
+
+# jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# docs
+README.md
+LICENSE
+
+# docker files (no need to copy docker config into the image)
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -12,3 +12,8 @@ reports/*.xlsx
 dist/
 build/
 .env
+data/faiss_index/
+data/reports/
+*.pkl
+*.bin
+.pytest_cache/

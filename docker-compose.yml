@@ -1,0 +1,86 @@
+# docker-compose for the full UPI fraud detection stack
+#
+# three services:
+#   1. api     - FastAPI gateway (handles all HTTP requests)
+#   2. worker  - Celery worker (processes async fraud scoring tasks)
+#   3. redis   - message broker + result backend for celery
+#
+# usage:
+#   docker-compose up -d          # start everything
+#   docker-compose logs -f api    # tail API logs
+#   docker-compose down           # stop everything
+#
+# the API works standalone without redis/worker - they just enable async mode.
+# if you only want the API: docker-compose up api
+
+version: '3.8'
+
+services:
+  # -- FastAPI application --
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: upi-fraud-api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app/src
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      # mount data directory so the API can access processed data and FAISS index
+      - ./data:/app/data
+      - ./reports:/app/reports
+    restart: unless-stopped
+    networks:
+      - fraud-net
+
+  # -- Celery worker --
+  # processes async fraud scoring tasks from the redis queue
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: upi-fraud-worker
+    command: celery -A src.tasks worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app/src
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    networks:
+      - fraud-net
+
+  # -- Redis --
+  # message broker for celery + result backend
+  # also used for caching if we add that later
+  redis:
+    image: redis:7-alpine
+    container_name: upi-fraud-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - fraud-net
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  fraud-net:
+    driver: bridge

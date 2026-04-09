@@ -12,3 +12,21 @@ faker
 jupyter
 nbformat
 kaleido
+
+# causal inference
+statsmodels
+
+# vector similarity search
+faiss-cpu
+
+# API framework
+fastapi
+uvicorn
+
+# async task queue (optional - project works without redis)
+celery
+redis
+
+# testing
+pytest
+flake8
